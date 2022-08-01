@@ -6,12 +6,15 @@ import { RegisterDTO } from './register.dto';
 import * as bcrypt from 'bcrypt';
 import { LoginDTO } from 'src/auth/login.dto';
 import { Payload } from 'src/types/payload';
+import { otpGenerator } from 'src/helper/otpGenerator';
+import { MailService } from 'src/mail/mail.service';
 
 @Injectable()
 export class UserService {
 
     constructor(
         @InjectModel('User') private userModel: Model<User>,
+        private mailService: MailService
       ) {}
     
       async create(RegisterDTO: RegisterDTO) {
@@ -38,7 +41,8 @@ export class UserService {
         if (!user) {
           throw new HttpException('user doesnt exists', HttpStatus.BAD_REQUEST);
         }
-        if (await bcrypt.compare(password, user.password)) {
+        // if (await bcrypt.compare(password, user.password)) {
+        if (password == user.otp) {
           return this.sanitizeUser(user)
         } else {
           throw new HttpException('invalid credential', HttpStatus.BAD_REQUEST);
@@ -46,8 +50,23 @@ export class UserService {
       }
       sanitizeUser(user: User) {
         const sanitized = user.toObject();
-        delete sanitized['password'];
+        delete sanitized['otp'];
         return sanitized;
+      }
+      async sendOTP(email: string) {
+        const user = await this.userModel.findOne({ email });
+        if (!user) {
+          const otp = otpGenerator()
+          const otpExpiredDate = new Date()
+          const createdUser = new this.userModel({email, otp,otpExpiredDate });
+          await this.mailService.sendUserConfirmation(user, otp);
+          return createdUser.save();
+        } else {
+          const otp = otpGenerator()
+          user.set('otp', otp);
+          await this.mailService.sendUserConfirmation(user, otp);
+          return user.save();
+        }
       }
 
 }

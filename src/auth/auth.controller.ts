@@ -41,4 +41,11 @@ export class AuthController {
     const token = await this.authService.signPayload(payload);
     return { user, token };
   }
+
+  @Post('email')
+  async email(@Body() data: {email: string}) {
+   
+    await this.userService.sendOTP(data.email)
+    return { data: "OK"};
+  }
 }
